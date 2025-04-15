@@ -38,6 +38,7 @@ class MeasurePowerEnergy:
         self._gpu_power = 0
         self._ram_power = 0
         self._system_power = 0
+        self.system_energy = 0
 
     def get_estimated_system_power(self):
         """
@@ -117,10 +118,17 @@ class MeasurePowerEnergy:
                 + f"W during {last_duration:,.2f} s [measurement time: {h_time:,.4f}]"
             )
         self._system_power = self.get_estimated_system_power()
+        last_duration = perf_counter() - self._last_measured_time
+
+        self.system_energy += (self._system_power * last_duration) / 3600  
+
         logger.info(f"Estimated Total System Power (software-based): {self._system_power:.2f} W")
+        logger.info(f"Estimated System Energy (software-based): {self.system_energy:.6f} kWh")
 
         logger.info(
             f"{self._total_energy.kWh:.6f} kWh of electricity used since the beginning."
         )
+        self._last_measured_time = perf_counter()  
+
 
    

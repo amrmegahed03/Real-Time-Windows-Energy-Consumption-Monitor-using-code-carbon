@@ -617,6 +617,7 @@ class BaseEmissionsTracker(ABC):
             on_cloud = "Y"
             cloud_provider = cloud.provider
             cloud_region = cloud.region
+        system_energy = (self._measure_power_energy._system_power * duration.seconds) / 3600  # kWh
         total_emissions = EmissionsData(
             timestamp=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
             project_name=self._project_name,
@@ -632,6 +633,7 @@ class BaseEmissionsTracker(ABC):
             cpu_energy=self._total_cpu_energy.kWh,
             gpu_energy=self._total_gpu_energy.kWh,
             ram_energy=self._total_ram_energy.kWh,
+            system_energy=system_energy,
             energy_consumed=self._total_energy.kWh,
             country_name=country_name,
             country_iso_code=country_iso_code,

@@ -47,6 +47,15 @@ class FileOutput(BaseOutput):
             backup(self.save_file_path)
             file_exists = False
 
+        # Calculate system_energy in kWh
+        system_power = total.values.get("system_power")
+        duration = total.values.get("duration")
+
+        if system_power is not None and duration is not None:
+            total.values["system_energy"] = (system_power * duration) / 3600
+        else:
+            total.values["system_energy"] = None
+
         if not file_exists:
             df = pd.DataFrame(columns=total.values.keys())
             df = pd.concat([df, pd.DataFrame.from_records([dict(total.values)])])

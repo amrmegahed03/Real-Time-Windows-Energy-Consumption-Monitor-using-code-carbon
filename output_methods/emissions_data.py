@@ -20,6 +20,7 @@ class EmissionsData:
     gpu_power: float
     ram_power: float
     system_power: float
+    system_energy: float
     cpu_energy: float
     gpu_energy: float
     ram_energy: float
