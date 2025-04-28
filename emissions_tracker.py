@@ -596,11 +596,18 @@ class BaseEmissionsTracker(ABC):
         """
         cloud: CloudMetadata = self._get_cloud_metadata()
         duration: Time = Time.from_seconds(time.perf_counter() - self._start_time)
+        system_energy = (self._measure_power_energy._system_power * duration.seconds) / 3600  # kWh
 
         if cloud.is_on_private_infra:
             emissions = self._emissions.get_private_infra_emissions(
                 self._total_energy, self._geo
             )  # float: kg co2_eq
+            system_energy_kwh = self._measure_power_energy.system_energy
+
+            system_emissions = self._emissions.get_private_infra_emissions(
+                Energy.from_energy(kWh=system_energy_kwh), self._geo
+            )
+
             country_name = self._geo.country_name
             country_iso_code = self._geo.country_iso_code
             region = self._geo.region
@@ -611,13 +618,23 @@ class BaseEmissionsTracker(ABC):
             emissions = self._emissions.get_cloud_emissions(
                 self._total_energy, cloud, self._geo
             )
+            system_energy_kwh = self._measure_power_energy.system_energy
+
+            system_emissions = self._emissions.get_private_infra_emissions(
+                Energy.from_energy(kWh=system_energy_kwh), self._geo
+            )
             country_name = self._emissions.get_cloud_country_name(cloud)
             country_iso_code = self._emissions.get_cloud_country_iso_code(cloud)
             region = self._emissions.get_cloud_geo_region(cloud)
             on_cloud = "Y"
             cloud_provider = cloud.provider
             cloud_region = cloud.region
-        system_energy = (self._measure_power_energy._system_power * duration.seconds) / 3600  # kWh
+
+        logger.info(f"System emissions: {system_emissions:.8f} kg")
+
+        # Step 2.4: Add to total emissions
+        emissions += system_emissions
+
         total_emissions = EmissionsData(
             timestamp=datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
             project_name=self._project_name,

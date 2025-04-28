@@ -1,5 +1,6 @@
 from time import perf_counter
 import psutil
+import time
 from codecarbon.external.hardware import CPU, GPU, RAM, AppleSiliconChip
 from codecarbon.external.logger import logger
 
@@ -8,6 +9,9 @@ class MeasurePowerEnergy:
     """
     Measure power and energy consumption of a hardware component.
     """
+    disk_base_watts = None
+    network_base_watts = None
+    peripherals_base_watts = None
 
     _last_measured_time: int = 0
     _hardware: list
@@ -25,9 +29,23 @@ class MeasurePowerEnergy:
         :param hardware: list of hardware components to measure
         :param pue: Power Usage Effectiveness of the datacenter
         """
+
         self._last_measured_time = perf_counter()
         self._hardware = hardware
         self._pue = pue
+
+        if MeasurePowerEnergy.disk_base_watts is None:
+            # Prompt user for base power values
+            try:
+                MeasurePowerEnergy.disk_base_watts = float(input("Enter estimated disk power in watts (e.g. 10): "))
+                MeasurePowerEnergy.network_base_watts = float(input("Enter estimated network interface power in watts (e.g. 3): "))
+                MeasurePowerEnergy.peripherals_base_watts = float(input("Enter estimated peripheral power in watts (e.g. 10): "))
+            except ValueError:
+                print("Invalid input. Using default values.")
+                MeasurePowerEnergy.disk_base_watts = 10
+                MeasurePowerEnergy.network_base_watts = 3
+                MeasurePowerEnergy.peripherals_base_watts = 10
+
         # TODO: Read initial energy values from hardware
         self._total_cpu_energy = 0
         self._total_gpu_energy = 0
@@ -42,25 +60,47 @@ class MeasurePowerEnergy:
 
     def get_estimated_system_power(self):
         """
-        Estimate full system power draw using CPU, RAM, and disk usage.
-        These are approximations — for real measurements, a smart plug is needed.
+        Estimate system power excluding CPU and RAM.
+        Includes approximated disk, network, and peripherals draw.
         """
-        cpu_percent = psutil.cpu_percent(interval=1)
-        ram_percent = psutil.virtual_memory().percent
-        disk_percent = psutil.disk_usage('/').percent
+        # === Base power assumptions ===
+        """
+        disk_base_watts = 10                  # Your SSDs: ~6W + ~4W
+        network_max_bytes = 125_000_000       # ~1 Gbps = 125MB/s
+        network_base_watts = 3                # Assumed draw at full bandwidth
+        peripherals_base_watts = 10           # Estimate for USB, audio, etc.
+        """
+        disk_base_watts = self.disk_base_watts
+        network_base_watts = self.network_base_watts
+        peripherals_base_watts = self.peripherals_base_watts
+        network_max_bytes = 125_000_000  # ~1 Gbps = 125MB/s
 
-        # Base assumptions (can be fine-tuned)
-        cpu_base_watts = 65      # Typical CPU TDP
-        ram_base_watts = 8       # Approximate full RAM draw
-        disk_base_watts = 5      # Average SSD/HDD draw
+        # === Disk usage ===
+        disk1 = psutil.disk_io_counters()
+        time.sleep(1)  # Measure over 1 second
+        disk2 = psutil.disk_io_counters()
+        bytes_read = disk2.read_bytes - disk1.read_bytes
+        bytes_written = disk2.write_bytes - disk1.write_bytes
+        total_bytes = bytes_read + bytes_written
+        disk_usage_ratio = min(total_bytes / network_max_bytes, 1.0)
+        disk_power = disk_usage_ratio * disk_base_watts
+        # disk_power = disk_base_watts  # Uncomment if you want to use the base power directly
+        # disk_power = 0  # Uncomment if you want to ignore disk power
 
-        self._system_power = (
-            (cpu_percent / 100) * cpu_base_watts +
-            (ram_percent / 100) * ram_base_watts +
-            (disk_percent / 100) * disk_base_watts
-        )
+        # === Network usage ===
+        net1 = psutil.net_io_counters()
+        time.sleep(1)  # Measure over 1 second
+        net2 = psutil.net_io_counters()
+        bytes_sent = net2.bytes_sent - net1.bytes_sent
+        bytes_recv = net2.bytes_recv - net1.bytes_recv
+        total_bytes = bytes_sent + bytes_recv
+        net_usage_ratio = min(total_bytes / network_max_bytes, 1.0)
+        network_power = net_usage_ratio * network_base_watts
 
+        # === Combine all estimates ===
+        self._system_power = disk_power + network_power + peripherals_base_watts
         return self._system_power
+
   
 
     def do_measure(self) -> None:
@@ -75,11 +115,19 @@ class MeasurePowerEnergy:
             energy *= self._pue
             self._total_energy += energy
             if isinstance(hardware, CPU):
+                # Estimate power from CPU usage using psutil
+                cpu_percent = psutil.cpu_percent(interval=None)
+                cpu_base_watts = 65  # Approximate TDP for your i7-10750H
+
+                estimated_cpu_power = (cpu_percent / 100) * cpu_base_watts
+                power.W = estimated_cpu_power  # Override power reading
+
                 self._total_cpu_energy += energy
                 self._cpu_power = power
+
                 logger.info(
                     f"Energy consumed for all CPUs : {self._total_cpu_energy.kWh:.6f} kWh"
-                    + f". Total CPU Power : {self._cpu_power.W} W"
+                    + f". Estimated CPU Power : {self._cpu_power.W:.2f} W"
                 )
             elif isinstance(hardware, GPU):
                 self._total_gpu_energy += energy
