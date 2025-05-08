@@ -24,7 +24,7 @@ class MeasurePowerEnergy:
     _gpu_power: float
     _ram_power: float
 
-    def __init__(self, hardware, pue):
+    def __init__(self, hardware, pue, disk_power=10, network_power=3, peripheral_power=10):
         """
         :param hardware: list of hardware components to measure
         :param pue: Power Usage Effectiveness of the datacenter
@@ -34,17 +34,10 @@ class MeasurePowerEnergy:
         self._hardware = hardware
         self._pue = pue
 
-        if MeasurePowerEnergy.disk_base_watts is None:
-            # Prompt user for base power values
-            try:
-                MeasurePowerEnergy.disk_base_watts = float(input("Enter estimated disk power in watts (e.g. 10): "))
-                MeasurePowerEnergy.network_base_watts = float(input("Enter estimated network interface power in watts (e.g. 3): "))
-                MeasurePowerEnergy.peripherals_base_watts = float(input("Enter estimated peripheral power in watts (e.g. 10): "))
-            except ValueError:
-                print("Invalid input. Using default values.")
-                MeasurePowerEnergy.disk_base_watts = 10
-                MeasurePowerEnergy.network_base_watts = 3
-                MeasurePowerEnergy.peripherals_base_watts = 10
+        self.disk_base_watts = disk_power
+        self.network_base_watts = network_power
+        self.peripherals_base_watts = peripheral_power
+
 
         # TODO: Read initial energy values from hardware
         self._total_cpu_energy = 0

@@ -422,7 +422,10 @@ class BaseEmissionsTracker(ABC):
 
         self._measure_power_energy = MeasurePowerEnergy(
             hardware=self._hardware,
-            pue=self._pue
+            pue=self._pue,
+            disk_power=getattr(self, "disk_power", 10),
+            network_power=getattr(self, "network_power", 3),
+            peripheral_power=getattr(self, "peripheral_power", 10)
         )
 
         # Read initial energy for hardware
